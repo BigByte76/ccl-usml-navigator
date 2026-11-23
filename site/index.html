@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>CCL / USML / DSGL Navigator</title>
 <link rel="stylesheet" href="style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f4e79'/><path d='M8 10h16M8 16h11M8 22h7' stroke='white' stroke-width='3' stroke-linecap='round'/></svg>">
 </head>
 <body>
 <header class="top">
-  <button class="icon-btn" id="menuBtn" aria-label="Toggle navigation">☰</button>
+  <button class="icon-btn" id="menuBtn" aria-label="Navigation" aria-controls="side" aria-expanded="false">☰</button>
   <a class="brand" href="#/">
     <span class="brand-mark">◧</span>
     <span class="brand-text">CCL / USML / DSGL Navigator</span>
@@ -18,20 +19,20 @@
     <input id="q" type="search" autocomplete="off" spellcheck="false"
            placeholder="Search keywords, 3A001.a.1, XI(a)(3), ML10.b…  press /" aria-label="Search">
     <div class="scope" role="group" aria-label="Search scope">
-      <button data-scope="all" class="on">All</button>
-      <button data-scope="ccl">CCL</button>
-      <button data-scope="usml">USML</button>
-      <button data-scope="dsgl">DSGL</button>
+      <button data-scope="all" class="on" aria-pressed="true">All</button>
+      <button data-scope="ccl" aria-pressed="false">CCL</button>
+      <button data-scope="usml" aria-pressed="false">USML</button>
+      <button data-scope="dsgl" aria-pressed="false">DSGL</button>
     </div>
   </div>
 </header>
 
 <div class="layout">
   <nav class="side" id="side" aria-label="Browse">
-    <div class="side-tabs">
-      <button data-tab="ccl" class="on">EAR · CCL</button>
-      <button data-tab="usml">ITAR · USML</button>
-      <button data-tab="dsgl">AU · DSGL</button>
+    <div class="side-tabs" role="group" aria-label="List to browse">
+      <button data-tab="ccl" class="on" aria-pressed="true">EAR · CCL</button>
+      <button data-tab="usml" aria-pressed="false">ITAR · USML</button>
+      <button data-tab="dsgl" aria-pressed="false">AU · DSGL</button>
     </div>
     <div class="tree" id="tree"></div>
   </nav>
@@ -39,6 +40,7 @@
     <div class="loading">Loading regulations…</div>
   </main>
 </div>
+<div id="announce" class="sr-only" aria-live="polite"></div>
 
 <script src="data/ccl.js" defer></script>
 <script src="data/usml.js" defer></script>

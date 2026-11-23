@@ -22,10 +22,14 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/checkout@v7
+      - uses: actions/configure-pages@v6
+      # The page loads data/*.js. The data/*.json copies are kept in the repo for
+      # diffs and other tools, but are not deployed (about 5 MB the site never reads).
+      - name: Stage site without JSON data copies
+        run: rsync -a --exclude 'data/*.json' site/ _site/
+      - uses: actions/upload-pages-artifact@v5
         with:
-          path: site
+          path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
