@@ -1,0 +1,18 @@
+{
+ "date": "2026-11-19",
+ "sources": [
+  "https://www.ecfr.gov/api/versioner/v1/structure/2026-11-19/title-15.json",
+  "https://www.ecfr.gov/api/versioner/v1/structure/2026-11-19/title-22.json",
+  "https://www.ecfr.gov/api/versioner/v1/full/2026-11-19/title-15.xml?part=774",
+  "https://www.ecfr.gov/api/versioner/v1/full/2026-11-19/title-22.xml?part=121"
+ ],
+ "ccl": {
+  "categories": 10,
+  "eccns": 637,
+  "items": 4479
+ },
+ "usml": {
+  "categories": 21,
+  "items": 1203
+ }
+}
