@@ -5,11 +5,14 @@ A fast, static website for navigating the **EAR Commerce Control List** (15 CFR 
 (F2024L01024). You can drill down to the final paragraph-level classification, or search keywords across all three
 lists.
 
+**Live site:** https://bigbyte76.github.io/ccl-usml-navigator/
+
 ## Run it
 
 Open `site/index.html` in a browser. It needs no server and no internet connection.
 
-To host it, copy the `site/` folder to any static web host (GitHub Pages, S3, an intranet share). You can also serve it locally:
+Every push to `main` that changes `site/` redeploys GitHub Pages via `.github/workflows/pages.yml`.
+To host it elsewhere, copy the `site/` folder to any static web host (GitHub Pages, S3, an intranet share). You can also serve it locally:
 
 ```sh
 cd site && python3 -m http.server 8000   # then open http://localhost:8000
