@@ -367,7 +367,8 @@ def parse(dom, ids):
                 code = f"ML{int(m.group(1))}"
                 ls = labs(m.group(2))
                 rest = raw[m.end():]
-                if note_open and entry is not None and len(ls) == 1 and note_fit(ls[0], ""):
+                if (note_open and entry is not None and len(ls) == 1 and note_stack and note_stack[-1]
+                        and succ(note_stack[-1][-1]) == ls[0] and note_fit(ls[0], "")):
                     # source typo: a note's list item printed with a full code, e.g. "ML910. e. tranquilliser guns"
                     last.append_html(f'<p class="note-li">{ls[0]}. {strip_label(h_inline, raw[:m.end()])}</p>')
                     continue
