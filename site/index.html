@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CCL / USML Navigator</title>
+<title>CCL / USML / DSGL Navigator</title>
 <link rel="stylesheet" href="style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f4e79'/><path d='M8 10h16M8 16h11M8 22h7' stroke='white' stroke-width='3' stroke-linecap='round'/></svg>">
 </head>
@@ -12,15 +12,16 @@
   <button class="icon-btn" id="menuBtn" aria-label="Toggle navigation">☰</button>
   <a class="brand" href="#/">
     <span class="brand-mark">◧</span>
-    <span class="brand-text">CCL / USML Navigator</span>
+    <span class="brand-text">CCL / USML / DSGL Navigator</span>
   </a>
   <div class="search-wrap">
     <input id="q" type="search" autocomplete="off" spellcheck="false"
-           placeholder="Search keywords, ECCNs (3A001.a.1) or USML (XI(a)(3))…  press /" aria-label="Search">
+           placeholder="Search keywords, 3A001.a.1, XI(a)(3), ML10.b…  press /" aria-label="Search">
     <div class="scope" role="group" aria-label="Search scope">
       <button data-scope="all" class="on">All</button>
       <button data-scope="ccl">CCL</button>
       <button data-scope="usml">USML</button>
+      <button data-scope="dsgl">DSGL</button>
     </div>
   </div>
 </header>
@@ -30,6 +31,7 @@
     <div class="side-tabs">
       <button data-tab="ccl" class="on">EAR · CCL</button>
       <button data-tab="usml">ITAR · USML</button>
+      <button data-tab="dsgl">AU · DSGL</button>
     </div>
     <div class="tree" id="tree"></div>
   </nav>
@@ -40,6 +42,7 @@
 
 <script src="data/ccl.js" defer></script>
 <script src="data/usml.js" defer></script>
+<script src="data/dsgl.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

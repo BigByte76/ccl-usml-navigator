@@ -1,8 +1,9 @@
-# CCL / USML Navigator
+# CCL / USML / DSGL Navigator
 
-A fast, static website for navigating the **EAR Commerce Control List** (15 CFR Part 774, Supp. No. 1) and the
-**ITAR U.S. Munitions List** (22 CFR § 121.1). You can drill down to the final paragraph-level classification, or search
-keywords across both lists.
+A fast, static website for navigating the **EAR Commerce Control List** (15 CFR Part 774, Supp. No. 1), the
+**ITAR U.S. Munitions List** (22 CFR § 121.1) and the Australian **Defence and Strategic Goods List 2024**
+(F2024L01024). You can drill down to the final paragraph-level classification, or search keywords across all three
+lists.
 
 ## Run it
 
@@ -16,6 +17,11 @@ cd site && python3 -m http.server 8000   # then open http://localhost:8000
 
 ## Features
 
+- **DSGL drill-down:** Part 1 Munitions List (ML1 → `.a` → `.1` …) and Part 2 Dual-use List (Category → Product
+  Group → entry such as 3A001 → `.a` → `.5` → `.a` …).
+  - DSGL entries carry **SL / VSL** badges when they appear on the Sensitive or Very Sensitive List.
+  - An ECCN or paragraph that exists in both the CCL and the DSGL has a **Compare** button that opens the same code
+    in the other list.
 - **Drill down** for the CCL goes Category → Product Group (A–E) → ECCN → `a.` → `a.1.` → `a.1.a.` …, down to the last
   sub-paragraph. For the USML it goes Category → `(a)` → `(1)` → `(i)` → `(A)`.
 - **Classification path.** Every paragraph page shows the chain of parent paragraphs (for example
@@ -34,6 +40,34 @@ cd site && python3 -m http.server 8000   # then open http://localhost:8000
 - A side tree, keyboard shortcuts (`/` to search, ↑ ↓ Enter), dark mode, mobile layout and print styles.
 
 ## Data and refreshing it
+
+### DSGL
+
+`scripts/build_dsgl.py` downloads the full text of F2024L01024 *as made* (the instrument the link
+https://www.legislation.gov.au/F2024L01024/asmade/text points to; commenced 1 September 2024) from its HTML
+rendering on legislation.gov.au, and writes `site/data/dsgl.{json,js}`.
+
+```sh
+python3 scripts/build_dsgl.py            # uses the cached download in data/raw/dsgl/
+python3 scripts/build_dsgl.py --refresh
+```
+
+Later amendments to the DSGL are not included. To use a later compilation, point `DOC` in the script at that
+version's `document_1.html`.
+
+The DSGL source is a Word export, and its paragraph styles do not reliably show depth. The parser therefore rebuilds
+the tree from the labels themselves:
+- Absolute codes (`3. A. 001. a. 2.`, `ML10. c.`) fix the position exactly.
+- Relative labels (`a.`, `1.`) alternate letter/number by level. Each one is placed as the first child of the
+  current paragraph or as the next sibling of an ancestor.
+- Auto-numbered Word lists get their implied labels back.
+- Notes and Technical Notes that introduce their own lettered lists ("does not apply to the following: a. … b. …")
+  are tracked separately, so those lists stay inside the note.
+
+As a cross-check, 270 of the 342 entries that exist in both the DSGL and the current CCL have identical paragraph
+structures. Most of the remainder are genuine wording differences between the two lists.
+
+### CCL and USML
 
 `scripts/build_data.py` downloads and parses the regulations from the eCFR Versioner API:
 
@@ -70,5 +104,6 @@ categories / 1,203 paragraphs).
 
 ## Disclaimer
 
-This is a navigation aid, not legal advice. Confirm classifications against the official eCFR text and, where needed,
-through a BIS commodity classification (CCATS) or a DDTC commodity jurisdiction (CJ) request.
+This is a navigation aid, not legal advice. Confirm classifications against the official eCFR or Federal Register of
+Legislation text and, where needed, through a BIS commodity classification (CCATS), a DDTC commodity jurisdiction (CJ)
+request, or Defence Export Controls.
