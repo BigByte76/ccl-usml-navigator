@@ -154,7 +154,7 @@ def iter_tag(el, tag):
 
 # --------------------------------------------------------------------------- labels
 DU_ABS = re.compile(r"^(\d)(?:\.\s*|\s+)([A-E])(?:\.\s*|\s+)(\d{3})(?:\.|(?=\s))((?:\s*(?:[a-z]|\d{1,2})\.(?!\d))*)\s*")
-ML_ABS = re.compile(r"^ML\s?(\d{1,2})\.((?:\s*(?:[a-z]|\d{1,2})\.(?!\d))*)\s*")
+ML_ABS = re.compile(r"^ML\s?(\d{1,3})\.((?:\s*(?:[a-z]|\d{1,2})\.(?!\d))*)\s*")
 GROUP = re.compile(r"^(\d)\.\s*([A-E])(?:\.\s*|\s+)(?:(\d)\.?\s+)?([A-Z][a-z“\"].*)$")
 GROUP_NAMES = {"A": "Systems, Equipment and Components", "B": "Test, Inspection and Production Equipment",
                "C": "Materials", "D": "Software", "E": "Technology"}
@@ -351,9 +351,15 @@ def parse(dom, ids):
                 code = f"ML{int(m.group(1))}"
                 ls = labs(m.group(2))
                 rest = raw[m.end():]
+                if note_open and entry is not None and len(ls) == 1 and note_fit(ls[0], ""):
+                    # source typo: a note's list item printed with a full code, e.g. "ML910. e. tranquilliser guns"
+                    last.append_html(f'<p class="note-li">{ls[0]}. {strip_label(h_inline, raw[:m.end()])}</p>')
+                    continue
                 if entry is None or entry["c"] != code:
                     entry = part1.add(Node(ids.make(code), code, short_title(rest, 400), "eccn",
                                            f'<p class="head">{html.escape(rest)}</p>' if not ls else ""))
+                    if re.match(r"^(Not used|\[Reserved\])", rest):
+                        entry["r"] = 1
                     nodes, path, last, note_open = {}, [], entry, False
                     note_stack.clear()
                     if not ls:

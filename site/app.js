@@ -135,7 +135,7 @@
   /* ------------------------------------------------------------------ cross-reference links */
   const ROMAN_RE = "(?:XXI|XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)";
   const ECCN_REF = /\b(\d[A-E]\d{3})((?:\.[a-z0-9]{1,3})*)\b/g;
-  const ML_REF = /\bML\s?(\d{1,2})((?:\.[a-z0-9]{1,3})*)\b/g;
+  const ML_REF = /\bML\s?(\d{1,3})((?:\.[a-z0-9]{1,3})*)\b/g;
   const USML_REF = new RegExp(`\\b(USML )?Category (${ROMAN_RE})(?![A-Za-z])((?:\\([a-zA-Z0-9]{1,5}\\))*)`, "g");
   function resolve(src, code) {
     const M = byId[src];
