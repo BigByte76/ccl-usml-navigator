@@ -547,12 +547,16 @@
   const tree = $("#tree");
   function treeLi(src, n) {
     const has = (n.k || []).length > 0;
-    return `<li data-id="${esc(n.i)}"><div class="row"><button class="tw ${has ? "" : "leaf"}" aria-label="Expand">▶</button>
+    const tw = has ? `<button class="tw" aria-expanded="false" aria-label="${esc(n.c)} sub-entries">▶</button>` : `<span class="tw leaf"></span>`;
+    return `<li data-id="${esc(n.i)}"><div class="row">${tw}
       <a href="${href(src, n)}" title="${esc(n.c + " " + (n.t || ""))}"><span class="tc">${esc(refLabel(n))}</span>${esc(refTitle(n))}</a></div></li>`;
   }
   function renderTree(src) {
     treeSrc = src;
-    document.querySelectorAll(".side-tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === src));
+    document.querySelectorAll(".side-tabs button").forEach(b => {
+      b.classList.toggle("on", b.dataset.tab === src);
+      b.setAttribute("aria-pressed", b.dataset.tab === src);
+    });
     const root = DATA[src];
     tree.innerHTML = `<ul>${root.k.map(k => treeLi(src, k)).join("")}</ul><div class="tref">Related provisions</div><ul>${(root.refs || []).map(k => treeLi(src, k)).join("")}</ul>`;
   }
@@ -566,7 +570,8 @@
       if (!ul && n.k) { li.insertAdjacentHTML("beforeend", `<ul>${n.k.map(k => treeLi(src, k)).join("")}</ul>`); ul = li.querySelector(":scope > ul"); }
       if (ul) ul.hidden = false;
       tw.textContent = "▼";
-    } else if (ul) { ul.hidden = true; tw.textContent = "▶"; }
+      tw.setAttribute("aria-expanded", "true");
+    } else if (ul) { ul.hidden = true; tw.textContent = "▶"; tw.setAttribute("aria-expanded", "false"); }
   }
   function syncTree(src, n) {
     if (treeSrc !== src) renderTree(src);
@@ -583,10 +588,32 @@
   tree.addEventListener("click", e => {
     const tw = e.target.closest(".tw");
     if (tw) { e.preventDefault(); expand(tw.closest("li")); return; }
-    if (e.target.closest("a")) document.body.classList.remove("nav-open");
+    if (e.target.closest("a")) setNav(false);
   });
   document.querySelectorAll(".side-tabs button").forEach(b => b.onclick = () => renderTree(b.dataset.tab));
-  $("#menuBtn").onclick = () => document.body.classList.toggle("nav-open");
+
+  /* ------------------------------------------------------------------ mobile navigation drawer */
+  // Below 900px the sidebar is an off-canvas drawer. Closed, it is inert so its links are not
+  // tab stops; open, the rest of the page is inert, Escape or a click outside closes it, and
+  // focus returns to the menu button.
+  const side = $("#side"), menuBtn = $("#menuBtn");
+  const mobile = matchMedia("(max-width: 900px)");
+  const behindDrawer = [main, $(".search-wrap"), $(".brand")];
+  const navOpen = () => document.body.classList.contains("nav-open");
+  function setNav(open, returnFocus = false) {
+    open = open && mobile.matches;
+    document.body.classList.toggle("nav-open", open);
+    menuBtn.setAttribute("aria-expanded", open);
+    side.inert = mobile.matches && !open;
+    for (const el of behindDrawer) el.inert = open;
+    if (open) (tree.querySelector(".row.cur a") || side.querySelector(".side-tabs .on")).focus({ preventScroll: true });
+    else if (returnFocus) menuBtn.focus();
+  }
+  menuBtn.onclick = () => setNav(!navOpen(), true);
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && navOpen()) setNav(false, true); });
+  document.addEventListener("click", e => { if (navOpen() && !e.target.closest("#side, #menuBtn")) setNav(false, true); });
+  mobile.addEventListener("change", () => setNav(false));
+  setNav(false);
 
   /* ------------------------------------------------------------------ routing */
   function route() {
@@ -617,7 +644,10 @@
   let tmr = 0;
   function setScope(s, rerun = true) {
     scope = s;
-    document.querySelectorAll(".scope button").forEach(b => b.classList.toggle("on", b.dataset.scope === s));
+    document.querySelectorAll(".scope button").forEach(b => {
+      b.classList.toggle("on", b.dataset.scope === s);
+      b.setAttribute("aria-pressed", b.dataset.scope === s);
+    });
     if (rerun && qInput.value.trim()) go(true);
   }
   function go(replace) {
@@ -650,10 +680,19 @@
     const b = e.target.closest("[data-copy]");
     if (!b) return;
     const t = b.dataset.copy;
-    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(
-      () => { const o = b.textContent; b.textContent = "Copied"; setTimeout(() => (b.textContent = o), 1200); },
-      () => prompt("Copy:", t));
+    // The page is served over HTTPS (or file://), so the async Clipboard API is the only path.
+    // A denied or missing clipboard shows "Copy failed" on the button instead of a prompt().
+    const report = ok => {
+      const msg = ok ? "Copied" : "Copy failed";
+      if (!b.dataset.label) b.dataset.label = b.textContent;
+      b.textContent = msg;
+      announce.textContent = ok ? `Copied ${t}` : msg;
+      clearTimeout(b._t);
+      b._t = setTimeout(() => { b.textContent = b.dataset.label; announce.textContent = ""; }, 1500);
+    };
+    Promise.resolve().then(() => navigator.clipboard.writeText(t)).then(() => report(true), () => report(false));
   });
+  const announce = $("#announce");
 
   renderTree("ccl");
   route();
