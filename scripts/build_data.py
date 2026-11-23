@@ -463,6 +463,90 @@ def ref_node(el, ids, label, prefix):
     return Node(rid, el.get("N", label), title, "ref", body)
 
 
+# --------------------------------------------------------------------------- definitions
+def def_key(term):
+    return re.sub(r"\s+", " ", re.sub(r"[“”\"‘’']", "", term)).strip().rstrip(".,:;").strip().lower()
+
+
+def def_keys(term):
+    """Lookup keys for a term: the term, and for 'Long Name (ABBR)' both parts."""
+    keys = [def_key(term)]
+    m = re.match(r"^(.*?)\s*\(([^)]+)\)\s*$", term)
+    if m:
+        keys += [def_key(m.group(1)), def_key(m.group(2))]
+    return [k for i, k in enumerate(keys) if k and k not in keys[:i]]
+
+
+def slug(s):
+    return re.sub(r"[^A-Za-z0-9]+", "-", s).strip("-")[:60] or "term"
+
+
+def parse_ear_defs(x772, ids):
+    """15 CFR 772.1: one paragraph per term, the term in italics at the start."""
+    sec = next(e for e in x772.iter("DIV8") if e.get("N") == "772.1")
+    root = Node(ids.make("DEFS"), "Definitions", "Part 772 — Definitions of Terms (15 CFR 772.1)", "defs")
+    cur = None
+    for el in sec:
+        if el.tag in ("HEAD", "XREF", "CITA"):
+            continue
+        first = el[0] if len(el) else None
+        is_term = (el.tag == "P" and first is not None and first.tag == "I" and not (el.text or "").strip()
+                   and not re.match(r"^\s*(Note|N\.B|Technical)", text_of(first)))
+        if is_term:
+            term = norm_ws(text_of(first)).rstrip(".").strip().strip("“”\" ")
+            rest = norm_ws(text_of(el))[len(norm_ws(text_of(first))):].strip()
+            cur = root.add(Node(ids.make("D-" + slug(term)), term, short_title(rest, 300), "def", render(el)))
+            cur["keys"] = def_keys(term)
+            continue
+        if cur is not None:
+            cur.append_html(render(el))
+        else:
+            root.append_html(render(el))
+    return root
+
+
+# Section of 22 CFR Part 120 Subpart C -> extra phrases to link in USML text
+ITAR_ALIASES = {
+    "120.31": ["defense article", "defense articles"],
+    "120.32": ["defense service", "defense services"],
+    "120.33": ["technical data"],
+    "120.34": ["public domain"],
+    "120.36": ["significant military equipment"],
+    "120.37": ["major defense equipment"],
+    "120.39": ["foreign defense article", "foreign defense articles"],
+    "120.41": ["specially designed"],
+    "120.42": ["form, fit, function", "catch-all control", "enumerated"],
+    "120.43": ["basic research", "applied research"],
+    "120.50": ["export"],
+    "120.51": ["reexport"],
+    "120.52": ["retransfer"],
+    "120.56": ["release"],
+    "120.62": ["U.S. person", "U.S. persons"],
+    "120.63": ["foreign person", "foreign persons"],
+}
+ITAR_LINKED = {"120.31", "120.32", "120.33", "120.34", "120.36", "120.37", "120.39", "120.41", "120.43", "120.62", "120.63"}
+
+
+def parse_itar_defs(x120, ids):
+    """22 CFR Part 120 Subpart C (§§ 120.30-120.69): one section per term or group of terms."""
+    sub = next(e for e in x120.iter() if e.get("TYPE") == "SUBPART" and e.get("N") == "C")
+    root = Node(ids.make("DEFS"), "Definitions", "Part 120 Subpart C — Definitions (22 CFR 120.30–120.69)", "defs")
+    for sec in sub.iter("DIV8"):
+        head = text_of(sec.find("HEAD"))
+        m = re.match(r"^§\s*([\d.]+)\s+(.*?)\.?$", head)
+        if not m or "[Reserved]" in head:
+            continue
+        num, term = m.group(1), m.group(2)
+        body = "".join(render(c) for c in sec if c.tag not in ("HEAD", "XREF"))
+        first = next((text_of(c) for c in sec if c.tag == "P"), "")
+        n = root.add(Node(ids.make("D-" + num), term, short_title(f"§ {num}. " + re.sub(r"^\(a\)\s*", "", first), 300), "def", body))
+        n["keys"] = def_keys(term)
+        n["sec"] = num
+        if num in ITAR_LINKED:
+            n["a"] = ITAR_ALIASES.get(num, [])
+    return root
+
+
 def count(node, typ):
     return (1 if node.get("y") == typ else 0) + sum(count(c, typ) for c in node.get("k", []))
 
@@ -478,6 +562,8 @@ def main():
         "t22": (f"{API}/structure/{d}/title-22.json", f"title-22-{d}.json"),
         "p774": (f"{API}/full/{d}/title-15.xml?part=774", f"part774-{d}.xml"),
         "p121": (f"{API}/full/{d}/title-22.xml?part=121", f"part121-{d}.xml"),
+        "p772": (f"{API}/full/{d}/title-15.xml?part=772", f"part772-{d}.xml"),
+        "p120": (f"{API}/full/{d}/title-22.xml?part=120", f"part120-{d}.xml"),
     }
     paths = {}
     for k, (url, fn) in files.items():
@@ -502,7 +588,7 @@ def main():
     for e in x774:
         if e.tag in ("DIV8", "DIV9") and e.get("N") != "Supplement No. 1 to Part 774":
             refs.append(ref_node(e, ids, e.get("N"), "R-"))
-    ccl["refs"] = refs
+    ccl["refs"] = [parse_ear_defs(ET.parse(paths["p772"]).getroot(), ids)] + refs
     ccl["crumbs"] = crumbs(p774[:-1]) + crumbs(ccl_path)
 
     # ---- USML
@@ -514,7 +600,7 @@ def main():
     for e in x121.iter("DIV8"):
         if e.get("N") != "121.1":
             refs.append(ref_node(e, ids, e.get("N"), "R-"))
-    usml["refs"] = refs
+    usml["refs"] = [parse_itar_defs(ET.parse(paths["p120"]).getroot(), ids)] + refs
     usml["crumbs"] = crumbs(p121[:-1]) + crumbs(usml_path)
 
     meta = {
@@ -522,6 +608,7 @@ def main():
         "sources": [u for u, _ in files.values()],
         "ccl": {"categories": count(ccl, "category"), "eccns": count(ccl, "eccn"), "items": count(ccl, "item")},
         "usml": {"categories": count(usml, "category"), "items": count(usml, "item")},
+        "defs": {"ccl": count(ccl["refs"][0], "def"), "usml": count(usml["refs"][0], "def")},
     }
     ccl["meta"] = usml["meta"] = meta
 

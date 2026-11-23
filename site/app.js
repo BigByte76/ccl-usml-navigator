@@ -12,10 +12,10 @@
             ecfr: () => "https://www.legislation.gov.au/F2024L01024/asmade/text" },
   };
   const TYPE_LABEL = {
-    ccl: { category: "CCL Category", part: "Category part", group: "Product group", subgroup: "Sub-group",
+    ccl: { defs: "Definitions", def: "Definition", category: "CCL Category", part: "Category part", group: "Product group", subgroup: "Sub-group",
            eccn: "ECCN", item: "ECCN paragraph", info: "Category note", ref: "Related provision" },
-    usml: { category: "USML Category", item: "USML paragraph", ref: "Related provision" },
-    dsgl: { part: "DSGL list", category: "Dual-use category", group: "Product group", eccn: "Control entry",
+    usml: { defs: "Definitions", def: "Definition", category: "USML Category", item: "USML paragraph", ref: "Related provision" },
+    dsgl: { defs: "Definitions", def: "Definition", part: "DSGL list", category: "Dual-use category", group: "Product group", eccn: "Control entry",
             item: "DSGL paragraph", ref: "Related provision" },
   };
   const LINK_LABEL = { ccl: "eCFR ↗", usml: "eCFR ↗", dsgl: "Legislation ↗" };
@@ -76,6 +76,34 @@
     for (const r of root.refs || []) visit(r, root, 1);
   }
 
+  /* ------------------------------------------------------------------ definitions */
+  const defIndex = { ccl: new Map(), usml: new Map(), dsgl: new Map() };
+  const defsNode = {};
+  const defKey = s => s.replace(/[“”"‘’']/g, "").replace(/\s+/g, " ").trim().replace(/[.,:;]+$/, "").toLowerCase();
+  for (const src of SOURCES) {
+    for (const r of DATA[src].refs || []) {
+      if (r.y !== "defs") continue;
+      defsNode[src] = r;
+      for (const d of r.k || []) for (const k of d.keys || []) if (!defIndex[src].has(k)) defIndex[src].set(k, d);
+    }
+  }
+  function lookupDef(src, phrase) {
+    const M = defIndex[src], k = defKey(phrase);
+    if (!k || k.length > 80) return null;
+    const tries = [k, k.replace(/ies$/, "y"), k.replace(/es$/, ""), k.replace(/s$/, ""), k.replace(/-/g, " "), k.replace(/ /g, "-")];
+    for (const t of tries) if (M.has(t)) return M.get(t);
+    return null;
+  }
+  // USML text does not quote defined terms: link a curated set of key ITAR phrases instead.
+  const usmlPhrases = [];
+  for (const d of (defsNode.usml && defsNode.usml.k) || []) for (const a of d.a || []) usmlPhrases.push([a.toLowerCase(), d]);
+  usmlPhrases.sort((x, y) => y[0].length - x[0].length);
+  const USML_TERM_RE = usmlPhrases.length
+    ? new RegExp(`\\b(${usmlPhrases.map(([a]) => a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})\\b`, "gi") : null;
+  const usmlPhraseMap = new Map(usmlPhrases);
+  const defTip = d => esc(trimWordsRaw(plain(d.h || d.t || ""), 320));
+  function trimWordsRaw(s, k) { return s.length <= k ? s : s.slice(0, k).replace(/\s+\S*$/, "") + "…"; }
+
   /* Untruncated paragraph text (titles in the data are capped for list views). */
   function fullTitle(n) {
     if (n.y !== "item" || !n.h) return n.t || "";
@@ -83,8 +111,8 @@
     if (!m) return n.t || "";
     return plain(m[1]).replace(/^\*?\s*(\([a-zA-Z0-9]+\)\s*)/, "").replace(/^[a-z](\.[0-9a-z]+)*\.*\s+/, "") || n.t || "";
   }
-  const refLabel = n => n.y === "ref" ? n.c.replace(/^Supplement No\. (\d+) to Part \d+$/, "Supp. $1") : n.c.replace(/^Category /, "");
-  const refTitle = n => n.y === "ref" ? (n.t || "").replace(/^(§+\s*[\d.\-]+|Supplement No\. \d+ to Part \d+|Division \d+)\s*[—-]?\s*/, "") : (n.t || "");
+  const refLabel = n => n.y === "def" ? "" : n.y === "defs" ? "Definitions" : n.y === "ref" ? n.c.replace(/^Supplement No\. (\d+) to Part \d+$/, "Supp. $1") : n.c.replace(/^Category /, "");
+  const refTitle = n => n.y === "def" ? n.c : n.y === "defs" ? `${(n.k || []).length} terms` : n.y === "ref" ? (n.t || "").replace(/^(§+\s*[\d.\-]+|Supplement No\. \d+ to Part \d+|Division \d+)\s*[—-]?\s*/, "") : (n.t || "");
   const trimWords = (s, k) => s.length <= k ? s : s.slice(0, k).replace(/\s+\S*$/, "") + "…";
   const ancestors = (src, n) => {
     const out = [];
@@ -148,26 +176,36 @@
     }
     return null;
   }
+  /* apply fn only to text outside our \u0001..\u0002 placeholder tags */
+  const outside = (s2, fn) => s2.split(/(\u0001[^\u0002]*\u0002)/).map((p, i) => (i % 2 ? p : fn(p))).join("");
   function linkify(html, src, hlTerms) {
     return html.split(/(<[^>]+>)/).map((seg, i) => {
       if (i % 2 || !seg) return seg;
       const eSrc = src === "dsgl" ? "dsgl" : "ccl";     // DSGL text refers to DSGL entries
       const a = (s2, n, m) => `\u0001a class="xref" href="${href(s2, n)}"\u0002${m}\u0001/a\u0002`;
-      let out = seg.replace(ECCN_REF, (m, e, rest) => {
+      const dl = (d, m) => `\u0001a class="defref" href="${href(src, d)}" title="${defTip(d)}"\u0002${m}\u0001/a\u0002`;
+      let out = seg;
+      if (src === "usml") {
+        if (USML_TERM_RE) out = out.replace(USML_TERM_RE, m => { const d = usmlPhraseMap.get(m.toLowerCase()); return d ? dl(d, m) : m; });
+      } else {
+        // “Quoted” terms are defined terms (EAR Part 772 / DSGL Division 4)
+        out = out.replace(/“([^“”]{1,80})”/g, (m, term) => { const d = lookupDef(src, term); return d ? `“${dl(d, term)}”` : m; });
+      }
+      out = outside(out, t => t.replace(ECCN_REF, (m, e, rest) => {
         const n = resolve(eSrc, e + rest);
         return n ? a(eSrc, n, m) : m;
-      });
+      }));
       if (src === "dsgl") {
-        out = out.replace(ML_REF, (m, num, rest) => {
+        out = outside(out, t => t.replace(ML_REF, (m, num, rest) => {
           const n = resolve("dsgl", "ML" + num + rest);
           return n ? a("dsgl", n, m) : m;
-        });
+        }));
       } else {
         // In the CCL, "Category XII" (roman) always refers to the USML; in the USML, to itself.
-        out = out.replace(USML_REF, (m, pre, rn, rest) => {
+        out = outside(out, t => t.replace(USML_REF, (m, pre, rn, rest) => {
           const n = resolve("usml", rn + rest);
           return n ? a("usml", n, m) : m;
-        });
+        }));
       }
       if (hlTerms && hlTerms.length) out = highlightText(out, hlTerms, true);
       return out.replace(/\u0001/g, "<").replace(/\u0002/g, ">");
@@ -290,7 +328,9 @@
           </div>
           <div class="refs">${refs("dsgl")}</div>
         </section>` : "";
-    function refs(src) { return (DATA[src].refs || []).filter(r => !/\[Reserved\]/.test(r.t)).map(r => `<a href="${href(src, r)}" title="${esc(r.t)}">${esc(refLabel(r).replace(/^(\d)/, "§ $1"))} ${esc(trimWords(refTitle(r), 40))}</a>`).join(""); }
+    function refs(src) { return (DATA[src].refs || []).filter(r => !/\[Reserved\]/.test(r.t)).map(r => r.y === "defs"
+      ? `<a class="defs-link" href="${href(src, r)}" title="${esc(r.t)}"><b>Definitions</b> · ${(r.k || []).length} terms</a>`
+      : `<a href="${href(src, r)}" title="${esc(r.t)}">${esc(refLabel(r).replace(/^(\d)/, "§ $1"))} ${esc(trimWords(refTitle(r), 40))}</a>`).join(""); }
     main.innerHTML = `<div class="wrap">
       <div class="hero">
         <h1>Export classification navigator</h1>
@@ -318,7 +358,9 @@
         <b>Search tips.</b> Words are combined with AND: <code>infrared camera</code>. Use quotes for a phrase:
         <code>"focal plane array"</code>. Exclude with a minus: <code>radar -weather</code>. Type a classification to jump to it:
         <code>3A001.a.1</code>, <code>XI(a)(3)</code>, <code>Category XV</code>, <code>ML10.b</code>. Use the scope buttons to limit a
-        search to one list. An ECCN that exists in both the CCL and the DSGL has a <i>Compare</i> button. Press <kbd>/</kbd> to search, <kbd>↑</kbd><kbd>↓</kbd> and
+        search to one list. An ECCN that exists in both the CCL and the DSGL has a <i>Compare</i> button.
+        Defined terms are underlined in the text: hover for the definition, click to open it. Type a term such as
+        <code>specially designed</code> to jump to its definitions. Press <kbd>/</kbd> to search, <kbd>↑</kbd><kbd>↓</kbd> and
         <kbd>Enter</kbd> to pick a result. Linked ECCN and USML references in the text are clickable.
       </div>
       ${foot()}
@@ -341,10 +383,11 @@
       <div class="titles">
         <div class="kicker"><span class="pill ${src}">${S.reg} · ${S.short}</span><span class="pill">${TYPE_LABEL[src][n.y] || n.y}</span>${chips(src, n)}</div>
         <div><span class="bigcode">${esc(n.c)}</span></div>
-        <h1>${linkify(esc(n.y === "ref" ? n.t : fullTitle(n)), src, hlTerms)}</h1>
+        <h1>${n.y === "def" ? (n.cats ? `<span class="muted">Applies to: ${esc(n.cats)}</span>` : "") : linkify(esc(n.y === "ref" || n.y === "defs" ? n.t : fullTitle(n)), src, hlTerms)}</h1>
       </div>
       <div class="actions">
         ${compareBtn(src, n)}
+        ${n.y === "def" ? `<a class="btn" href="#/search?q=${enc('"' + n.c.replace(/\s*\(.*\)$/, "") + '"')}&s=${src}" title="Search this list for the term">Find uses</a>` : ""}
         <button class="btn" data-copy="${esc(n.c)}" title="Copy classification">Copy</button>
         <a class="btn" href="${n.y === "ref" ? refUrl(src, n) : S.ecfr(META.date)}" target="_blank" rel="noopener">${LINK_LABEL[src]}</a>
       </div></div>`;
@@ -361,7 +404,9 @@
     const finalBox = isLeaf ? `<div class="final"><span class="lbl">Final classification level</span><span class="val">${esc(n.c)}</span>
       <button class="btn" data-copy="${esc(n.c)}">Copy</button>${n.s ? `<span class="pill sme">SME</span>` : ""}</div>` : "";
 
-    const kidsHtml = kids.length ? `<h2>${n.y === "eccn" || n.y === "item" || src === "usml" ? "Drill down — paragraphs" : "Drill down"} <span class="muted">(${kids.length})</span></h2>
+    const defsHtml = n.y === "def" ? alsoDefined(src, n) : "";
+    const filterBox = n.y === "defs" ? `<input id="deffilter" class="deffilter" type="search" placeholder="Filter ${kids.length} terms…" autocomplete="off">` : "";
+    const kidsHtml = kids.length ? `${filterBox}<h2>${n.y === "defs" ? "Terms" : n.y === "eccn" || n.y === "item" || src === "usml" ? "Drill down — paragraphs" : "Drill down"} <span class="muted">(${kids.length})</span></h2>
       <div class="card"><ul class="kids">${kids.map(k => {
         const d = countDesc(k);
         return `<li class="${k.r ? "reserved" : ""}"><a href="${href(src, k, hl)}"><span class="kc">${esc(k.c)}</span>
@@ -375,7 +420,7 @@
       const heading = src === "ccl" ? "License requirements, exceptions &amp; list of items controlled" : "Entry text &amp; notes";
       textHtml = body ? `<details class="sect" open><summary><h2>${heading}</h2></summary><div class="card text">${body}</div></details>` : "";
     } else if (body) {
-      textHtml = `<h2>${n.y === "ref" ? "Text" : "Regulatory text"}</h2><div class="card text">${body}</div>`;
+      textHtml = `<h2>${n.y === "ref" ? "Text" : n.y === "def" ? "Definition" : n.y === "defs" ? "Introduction" : "Regulatory text"}</h2><div class="card text">${body}</div>`;
     }
     if (n.p) textHtml += `<h2>Notes to ${esc(n.c)}</h2><div class="card text">${linkify(n.p, src, hlTerms)}</div>`;
 
@@ -392,7 +437,14 @@
     const pager = `<div class="pager">${prev ? `<a class="card prev" href="${href(src, prev, hl)}">← <span class="code">${esc(prev.c)}</span> ${esc((prev.t || "").slice(0, 60))}</a>` : "<span></span>"}
       ${next ? `<a class="card next" href="${href(src, next, hl)}"><span class="code">${esc(next.c)}</span> ${esc((next.t || "").slice(0, 60))} →</a>` : ""}</div>`;
 
-    main.innerHTML = `<div class="wrap">${crumbs}${head}${finalBox}${pathHtml}${kidsHtml}${textHtml}${fullHtml}${pager}${foot()}</div>`;
+    main.innerHTML = n.y === "defs"
+      ? `<div class="wrap">${crumbs}${head}${textHtml}${kidsHtml}${foot()}</div>`
+      : `<div class="wrap">${crumbs}${head}${finalBox}${pathHtml}${kidsHtml}${textHtml}${defsHtml}${fullHtml}${pager}${foot()}</div>`;
+    const ff = $("#deffilter");
+    if (ff) ff.addEventListener("input", () => {
+      const q = defKey(ff.value);
+      main.querySelectorAll(".kids li").forEach(li => { li.hidden = q && !defKey(li.textContent).includes(q); });
+    });
 
     const fs = $("#fullsec");
     if (fs) fs.addEventListener("toggle", () => {
@@ -411,6 +463,18 @@
     const mk = main.querySelector(".text mark");
     if (mk && hlTerms.length) setTimeout(() => mk.scrollIntoView({ block: "center" }), 0);
     syncTree(src, n);
+  }
+
+  /* The same term defined in the other lists. */
+  function alsoDefined(src, n) {
+    const links = [];
+    for (const s2 of SOURCES) {
+      if (s2 === src) continue;
+      let d = null;
+      for (const k of n.keys || []) { d = lookupDef(s2, k); if (d) break; }
+      if (d) links.push(`<a class="btn" href="${href(s2, d)}"><span class="pill ${s2}">${SRC[s2].short}</span> ${esc(d.c)}</a>`);
+    }
+    return links.length ? `<h2>Also defined in</h2><div class="also">${links.join("")}</div>` : "";
   }
 
   /* Same code in the other Wassenaar-based list (CCL <-> DSGL). */

@@ -25,6 +25,13 @@ cd site && python3 -m http.server 8000   # then open http://localhost:8000
   - DSGL entries carry **SL / VSL** badges when they appear on the Sensitive or Very Sensitive List.
   - An ECCN or paragraph that exists in both the CCL and the DSGL has a **Compare** button that opens the same code
     in the other list.
+- **Definitions:** each list has a glossary with a filter box: EAR Part 772 (324 terms), ITAR Part 120 Subpart C
+  (33 sections) and DSGL Division 4 (191 terms).
+  - Defined terms in the text are underlined. Hover to preview the definition, click to open it. In the CCL and DSGL
+    these are the terms in “double quotes”; in the USML, key ITAR terms such as *specially designed*, *technical data*
+    and *defense article* are linked.
+  - A definition page shows where the same term is defined in the other lists, and a *Find uses* button searches for it.
+  - Typing a term such as `specially designed` offers its definitions as jump results.
 - **Drill down** for the CCL goes Category → Product Group (A–E) → ECCN → `a.` → `a.1.` → `a.1.a.` …, down to the last
   sub-paragraph. For the USML it goes Category → `(a)` → `(1)` → `(i)` → `(A)`.
 - **Classification path.** Every paragraph page shows the chain of parent paragraphs (for example
@@ -79,6 +86,8 @@ structures. Most of the remainder are genuine wording differences between the tw
 | `structure/<date>/title-15.json`, `title-22.json` | Regulatory hierarchy and breadcrumbs (Title › Chapter › Subchapter › Part › Supplement/Section) |
 | `full/<date>/title-15.xml?part=774` | Full text of the CCL, parsed into the drill-down tree |
 | `full/<date>/title-22.xml?part=121` | Full text of the USML, parsed into the drill-down tree |
+| `full/<date>/title-15.xml?part=772` | EAR definitions (§ 772.1) |
+| `full/<date>/title-22.xml?part=120` | ITAR definitions (Part 120 Subpart C) |
 
 The structure JSON stops at "Supplement No. 1 to Part 774" and "§ 121.1". It has no ECCNs or USML paragraphs, so
 the full-text XML for those two nodes supplies everything below that level.

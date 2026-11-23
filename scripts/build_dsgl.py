@@ -25,7 +25,7 @@ import urllib.request
 from html.parser import HTMLParser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_data import Node, Ids, short_title  # noqa: E402
+from build_data import Node, Ids, short_title, def_keys, slug  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, "data", "raw", "dsgl")
@@ -301,11 +301,27 @@ def parse(dom, ids):
             if section == "pre" and cls in ("ActHead3",):
                 ref = Node(ids.make("R-" + re.sub(r"[^A-Za-z0-9]+", "-", raw.split("—")[0]).strip("-")),
                            raw.split("—")[0].strip(), raw, "ref")
+                if raw.startswith("Division 4"):
+                    ref.update(y="defs", c="Definitions", t="Division 4 — Definitions (DSGL 2024)")
                 refs.append(ref); last = ref; continue
             if ref is not None:
                 ref.append_html(f'<h4>{html.escape(raw)}</h4>'); continue
             continue
         if section in (None, "end"):
+            continue
+        if section == "pre" and ref is not None and ref["y"] == "defs":
+            # Definitions: one "Definition" paragraph per term: “Term” (categories) means ...
+            dm = re.match(r'^[“"](.+?)[”"]\s*(\(([^)]*)\))?\s*', raw)
+            if cls == "Definition" and dm:
+                term = dm.group(1).strip()
+                d = ref.add(Node(ids.make("D-" + slug(term)), term, short_title(raw[dm.end():].lstrip(",;: "), 300), "def",
+                                 f'<p class="p">{h_inline}</p>'))
+                d["keys"] = def_keys(term)
+                if dm.group(3):
+                    d["cats"] = dm.group(3)
+                continue
+            target = (ref.get("k") or [None])[-1] or ref
+            target.append_html(f'<p class="{"note" if "note" in cls.lower() else "p"}">{h_inline}</p>')
             continue
         if section in ("pre", "ref"):
             if ref is not None:
@@ -489,6 +505,7 @@ def main():
         "du_categories": count(root["k"][1], "category"),
         "du_entries": count(root["k"][1], "eccn"),
         "items": count(root, "item"),
+        "defs": sum(count(r, "def") for r in refs),
     }
     # Codes on the Sensitive / Very Sensitive Lists (first cell of each table row)
     for r in refs:

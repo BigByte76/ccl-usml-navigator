@@ -245,3 +245,13 @@ details.sect[open] > summary h2::before { content: "▾ "; }
   .layout { display: block; padding: 0; }
   main { height: auto; overflow: visible; }
 }
+
+/* ---------- definitions */
+.text a.defref, .head a.defref, .path a.defref { color: inherit; text-decoration: none; border-bottom: 1px dashed var(--accent-2); cursor: help; }
+.text a.defref:hover { color: var(--accent-2); }
+.deffilter { width: 100%; height: 38px; margin: 18px 0 0; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); font-size: 14px; outline: none; }
+.deffilter:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px var(--accent-bg); }
+.also { display: flex; flex-wrap: wrap; gap: 8px; }
+.also .btn { display: inline-flex; gap: 6px; align-items: center; }
+.refs a.defs-link { font-weight: 500; }
